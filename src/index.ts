@@ -1,59 +1,62 @@
 import express, { Request, Response } from 'express'
 import cookieParser from 'cookie-parser'
+import path from 'path'
 import dotenv from 'dotenv'
+import { checkAuth } from './middleware/auth'
 
 dotenv.config()
 
 // Create server
 const app = express()
 
+interface User {
+  username: string,
+  password: string
+}
 
-// // middleware
-// const cookie = process.env.COOKIE_KEY
-// app.use(cookieParser(cookie))
+// In-memory database
+const users: User[] = [
+  { username: 'admin', password: '12345' }
+]
+
+// Middleware
+app.use(cookieParser(process.env.COOKIE_KEY))
+app.use(express.json())
+app.use(express.urlencoded({ extended: true }))
+app.set('view engine', 'ejs')
+app.set('views', path.join(__dirname, '../src/views'))
 
 // // Routes
 app.get('/', (req: Request, res: Response) => {
-  res.status(200).send('<h1>Welcome to my homepage</h1>  <a href="/login">ログイン</a><a href="/profile">プロフィール</a>')
+  res.render('home')
 })
 app.get('/login', (req: Request, res: Response) => {
-  res.status(200).send('<h1>login</h1>')
+  res.render("login")
 })
-// app.post('/login', (req: Request, res: Response) => {
-//   res.status(200).send('<h1>login</h1>')
-// })
-app.get('/profile', (req: Request, res: Response) => {
+
+app.post('/login',(req: Request<{}, {}, User>, res: Response)=>{
+  const found = users.find(user => user.username === req.body.username && user.password === req.body.password)
+  if (found) {
+    res.cookie('authToken', 'authenticated', {
+      maxAge: 2 * 60 * 1000,
+      httpOnly: true,
+      signed: true
+    })
+    res.redirect('/profile')
+  } else {
+    res.send('User not found')
+  }
+})
+
+
+
+app.get('/profile',checkAuth, (req: Request, res: Response) => {
   res.status(200).send('<h1>profile</h1>')
 })
 
-// app.get('/login', (req: Request, res:Response)=>{
-//   res.cookie('authToken', "abc123",{
-//     maxAge: 60 * 1000, //1分 ミリセカンド
-//     //maxAge はcookieの持続時間のこと
-//     httpOnly: true,
-//     // Express の httpOnly は、Cookie がクライアントの JavaScript ではなく HTTP(S) のみを介して送信されるように設定する属性です。これにより、クロスサイト・スクリプティング（XSS）攻撃から保護することができます。
-//     signed: true, //signed req.signedCookies, not req. req.cookies that is signed 
-    
-//   })
-
-// res.status(200).send('Cookie set!')
-// })
-
-// app.get('/private', (req: Request, res:Response)=>{
-//   const {authToken}= req.signedCookies
-//   if(authToken === "abc123"){
-//     res.status(200).send('Access granted')
-//   }else{
-//     res.redirect("/")
-//   }
-// })
-
-
-// app.get('/logout', (req: Request, res:Response)=>{
-//   res.clearCookie("authToken")
-//   res.status(200).send('cookie cleard')
-// })
-
+app.use((req: Request, res: Response) => {
+  res.status(404).send('Page not found')
+})
 // Start server
 const PORT: number = Number(process.env.PORT || 3000)
 app.listen(PORT, () => {
